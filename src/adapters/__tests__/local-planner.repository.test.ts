@@ -21,19 +21,46 @@ describe('LocalPlannerRepository', () => {
     const sample = createSampleSnapshot();
     const snapshot = { ...sample, suitcase: { ...sample.suitcase, length: 61 } };
     repo.save(snapshot);
-    expect(repo.load().value.suitcase.length).toBe(61);
+    const loaded = repo.load();
+    expect(loaded.value.suitcase.length).toBe(61);
+    expect(loaded.recovery.status).toBe('ok');
   });
 
   it('returns sample data when storage is empty', () => {
     const result = new LocalPlannerRepository(storage).load();
     expect(result.value.items.length).toBeGreaterThan(0);
-    expect(result.warning).toBeUndefined();
+    expect(result.recovery.status).toBe('ok');
   });
 
-  it('returns sample data and a warning for malformed JSON', () => {
+  it('returns sample data and retains raw text for malformed JSON', () => {
     storage.setItem('c2c-004.planner', '{bad');
     const result = new LocalPlannerRepository(storage).load();
     expect(result.value.items.length).toBeGreaterThan(0);
-    expect(result.warning).toContain('已恢复示例');
+    expect(result.recovery.status).toBe('sample');
+    expect(result.recovery.notes[0]).toContain('无法解析');
+    expect(result.recovery.rawText).toBe('{bad');
+  });
+
+  it('repairs parseable but structurally damaged records without dropping valid items', () => {
+    const valid = {
+      id: 'jacket', name: '外套', category: '衣物',
+      length: 30, width: 24, height: 5, weight: 0.65, priority: 3, mustHave: true,
+    };
+    storage.setItem('c2c-004.planner', JSON.stringify({
+      suitcase: { length: 52, width: 35, height: 23, maxWeight: 10 },
+      items: [valid, { id: 'broken', height: 4 }],
+      selectedPlan: 'express',
+    }));
+    const result = new LocalPlannerRepository(storage).load();
+    expect(result.recovery.status).toBe('repaired');
+    expect(result.value.items.map((item) => item.id)).toEqual(['jacket']);
+    expect(result.value.selectedPlan).toBe('comfort');
+    expect(result.recovery.isolated[0].reasons.join(' ')).toContain('缺少长度尺寸');
+  });
+
+  it('does not overwrite the original record on load', () => {
+    storage.setItem('c2c-004.planner', '{bad');
+    new LocalPlannerRepository(storage).load();
+    expect(storage.getItem('c2c-004.planner')).toBe('{bad');
   });
 });

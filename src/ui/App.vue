@@ -13,6 +13,7 @@ import PackingProjection from './components/PackingProjection.vue';
 import PlanCompare from './components/PlanCompare.vue';
 import RiskPanel from './components/RiskPanel.vue';
 import PrintSheet from './components/PrintSheet.vue';
+import RecoveryBanner from './components/RecoveryBanner.vue';
 
 const props = defineProps<{ repository?: PlannerRepository; printPort?: PrintPort }>();
 const planner = usePlanner({ repository: props.repository ?? new LocalPlannerRepository(window.localStorage), printPort: props.printPort ?? new BrowserPrintAdapter() });
@@ -24,6 +25,7 @@ const errors = computed(() => validateSuitcase(planner.state.suitcase));
   <div class="app-shell">
     <header class="topbar"><div class="brand"><span class="brand-mark">PACK<br><b>WISE</b></span><div><small>TRAVEL LAB / 004</small><h1>行李箱空间规划师</h1></div></div><div class="header-actions"><span :class="{ stale: planner.isStale.value }">{{ planner.isStale.value ? '方案待更新' : '规划已同步' }}</span><button type="button" data-testid="print-button" @click="planner.print">打印清单</button><button type="button" class="primary" :disabled="errors.length > 0" @click="planner.regenerate">智能装箱 ↗</button></div></header>
     <main>
+      <RecoveryBanner v-if="planner.recovery.value" :report="planner.recovery.value" @confirm="planner.confirmRecovery" />
       <section class="hero"><div><small>SPACE, WEIGHT & PRIORITY</small><h2>把每一寸空间，<em>留给真正重要的。</em></h2><p>输入清单，比较三种策略，在出发前看清重量、空间与风险。</p></div><div class="hero-stamp"><b>{{ planner.state.items.length }}</b><span>ITEMS<br>TO PACK</span></div></section>
       <PlanCompare :plans="planner.plans.value" :selected="planner.state.selectedPlan" :suitcase="planner.state.suitcase" @select="planner.selectPlan" />
       <div class="workspace">
