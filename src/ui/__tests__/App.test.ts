@@ -55,4 +55,34 @@ describe('Luggage planner App', () => {
     await wrapper.get('[data-testid="print-button"]').trigger('click');
     expect(getPrintCount()).toBe(1);
   });
+
+  it('recovers corrupted local data and saves only after confirmation', async () => {
+    const storage = new MemoryStorage();
+    const dirty = {
+      suitcase: { length: 52, width: 35, height: 23, maxWeight: 10 },
+      items: [
+        { id: 'lone', name: '孤独物品', category: '衣物', length: 10, width: 10, height: 5, weight: 0.5, priority: 2, mustHave: false },
+        { id: 'broken', name: '缺尺寸物品', category: '衣物', weight: 1, priority: 2, mustHave: false },
+      ],
+      selectedPlan: 'deluxe',
+    };
+    storage.setItem('c2c-004.planner', JSON.stringify(dirty));
+    const wrapper = mount(App, { props: {
+      repository: new LocalPlannerRepository(storage),
+      printPort: { print() {} },
+    } });
+
+    expect(wrapper.text()).toContain('孤独物品');
+    expect(wrapper.find('[aria-label="删除 缺尺寸物品"]').exists()).toBe(false);
+    expect(wrapper.text()).toContain('缺少尺寸');
+    expect(wrapper.text()).toContain('舒适版摆放方案');
+    expect(JSON.parse(storage.getItem('c2c-004.planner')!).selectedPlan).toBe('deluxe');
+
+    await wrapper.get('[data-testid="confirm-recovery"]').trigger('click');
+    expect(wrapper.find('[data-testid="confirm-recovery"]').exists()).toBe(false);
+    const saved = JSON.parse(storage.getItem('c2c-004.planner')!);
+    expect(saved.selectedPlan).toBe('comfort');
+    expect(saved.items.map((item: { id: string }) => item.id)).toEqual(['lone']);
+    expect(new LocalPlannerRepository(storage).load().warning).toBeUndefined();
+  });
 });

@@ -13,11 +13,17 @@ export function usePlanner({ repository, printPort }: PlannerDependencies) {
   const state = reactive<PackingSnapshot>(loaded.value);
   const notice = ref(loaded.warning ?? '');
   const isStale = ref(false);
+  const pendingRecovery = ref(Boolean(loaded.recovery));
+  const recoveryReport = ref(loaded.recovery ?? null);
   const plans = ref(generatePlans(state.suitcase, state.items));
   const currentPlan = computed(() => plans.value[state.selectedPlan]);
   const risks = computed(() => detectRisks(currentPlan.value, state.suitcase, state.items));
 
-  const save = () => repository.save(JSON.parse(JSON.stringify(state)) as PackingSnapshot);
+  // 恢复待确认时不落盘，避免自动覆盖仍保留在本地的原始内容。
+  const save = () => {
+    if (pendingRecovery.value) return;
+    repository.save(JSON.parse(JSON.stringify(state)) as PackingSnapshot);
+  };
   const markStale = () => { isStale.value = true; save(); };
 
   function addItem(item: PackingItem) { state.items.push(item); markStale(); }
@@ -30,7 +36,14 @@ export function usePlanner({ repository, printPort }: PlannerDependencies) {
   function updateSuitcase(patch: Partial<Suitcase>) { Object.assign(state.suitcase, patch); markStale(); }
   function regenerate() { plans.value = generatePlans(state.suitcase, state.items); isStale.value = false; notice.value = '三套方案已重新计算'; save(); }
   function selectPlan(mode: PlanMode) { state.selectedPlan = mode; save(); }
+  function confirmRecovery() {
+    if (!pendingRecovery.value) return;
+    pendingRecovery.value = false;
+    notice.value = '已确认恢复，修复后的规划已保存';
+    save();
+  }
   function resetSample() {
+    pendingRecovery.value = false;
     const sample = createSampleSnapshot();
     Object.assign(state, sample);
     plans.value = generatePlans(state.suitcase, state.items);
@@ -39,5 +52,5 @@ export function usePlanner({ repository, printPort }: PlannerDependencies) {
     save();
   }
 
-  return { state, notice, isStale, plans, currentPlan, risks, addItem, updateItem, removeItem, updateSuitcase, regenerate, selectPlan, resetSample, print: () => printPort.print() };
+  return { state, notice, isStale, pendingRecovery, recoveryReport, plans, currentPlan, risks, addItem, updateItem, removeItem, updateSuitcase, regenerate, selectPlan, confirmRecovery, resetSample, print: () => printPort.print() };
 }

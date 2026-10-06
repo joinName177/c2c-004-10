@@ -36,7 +36,16 @@ const errors = computed(() => validateSuitcase(planner.state.suitcase));
           <RiskPanel :risks="planner.risks.value" />
         </section>
       </div>
-      <p class="notice" aria-live="polite">{{ planner.notice.value }}</p>
+      <section v-if="planner.pendingRecovery.value" class="recovery-bar" aria-live="polite">
+        <div class="recovery-copy">
+          <p class="notice">{{ planner.notice.value }}</p>
+          <ul v-if="planner.recoveryReport.value?.quarantined.length" class="quarantine-list">
+            <li v-for="entry in planner.recoveryReport.value.quarantined" :key="entry.index">第 {{ entry.index + 1 }} 条<template v-if="entry.name">「{{ entry.name }}」</template>：{{ entry.reason }}</li>
+          </ul>
+        </div>
+        <button type="button" class="primary" data-testid="confirm-recovery" @click="planner.confirmRecovery">确认恢复并保存</button>
+      </section>
+      <p v-else class="notice" aria-live="polite">{{ planner.notice.value }}</p>
     </main>
     <PrintSheet :suitcase="planner.state.suitcase" :items="planner.state.items" :plan="planner.currentPlan.value" :risks="planner.risks.value" />
   </div>
